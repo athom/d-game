@@ -1,0 +1,626 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html>
+  <head>
+    <title>Mango Street</title>
+    <link href="/stylesheets/screen.css" media="all" rel="stylesheet" type="text/css"/>
+    <script language="javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.4.4/jquery.min.js" type="text/javascript"></script><script language="javascript" src="javascripts/jquery.hotkeys.js" type="text/javascript"></script><script language="javascript" src="javascripts/key_status.js" type="text/javascript"></script><script language="javascript" src="javascripts/util.js" type="text/javascript"></script><script language="javascript" src="javascripts/sprite.js" type="text/javascript"></script><script language="javascript" src="javascripts/sound.js" type="text/javascript"></script>
+  </head>
+  <body>
+    <script type='text/javascript'>
+        var BOARD_TOP = 80;
+        var BOARD_LEFT = 370;
+        var BOARD_WIDTH = 500;
+        var BOARD_HEIGHT = 500;
+        var CANVAS_WIDTH = 1028;
+        var CANVAS_HEIGHT = 600;
+
+		var WHITE_FLAG="white";
+		var BLACK_FLAG="black";
+
+		var WHITE_NORMAL_BG="#f00";
+		var BLACK_NORMAL_BG="#000";
+		var WHITE_NORMAL_TX="#0ff";
+		var BLACK_NORMAL_TX="#fff";
+
+		var WHITE_SELECTED_BG="#f0f";
+		var BLACK_SELECTED_BG="666";
+		var WHITE_SELECTED_TX="#0f0";
+		var BLACK_SELECTED_TX="#ff0";
+
+        var FPS = 30;
+		var current_player = WHITE_FLAG
+        
+        var canvasElement = $("<canvas id='canvas' width='" + CANVAS_WIDTH + 
+          "' height='" + CANVAS_HEIGHT + "'></canvas");
+        var canvas = canvasElement.get(0).getContext("2d");
+        canvasElement.appendTo('body');
+        
+        setInterval(function() {
+          	update();
+          	draw();
+        }, 1000/FPS);
+		
+
+		function resetGame()
+		{
+			white_units = null;
+			black_units = null;
+			newGame();
+		}
+
+		function newGame()
+		{
+			white_units = new Array(6); 
+			white_units[0] = new GameUnit(1, new Array(5,0), true, WHITE_FLAG, false);
+			white_units[1] = new GameUnit(2, new Array(4,0), true, WHITE_FLAG, false);
+			white_units[2] = new GameUnit(3, new Array(3,0), true, WHITE_FLAG, false);
+			white_units[3] = new GameUnit(4, new Array(2,0), true, WHITE_FLAG, false);
+			white_units[4] = new GameUnit(5, new Array(1,0), true, WHITE_FLAG, false);
+			white_units[5] = new GameUnit(6, new Array(0,0), true, WHITE_FLAG, false);
+
+			black_units = new Array(6); 
+			black_units[0] = new GameUnit(1, new Array(0,5), true, BLACK_FLAG, false);
+			black_units[1] = new GameUnit(2, new Array(1,5), true, BLACK_FLAG, false);
+			black_units[2] = new GameUnit(3, new Array(2,5), true, BLACK_FLAG, false);
+			black_units[3] = new GameUnit(4, new Array(3,5), true, BLACK_FLAG, false);
+			black_units[4] = new GameUnit(5, new Array(4,5), true, BLACK_FLAG, false);
+			black_units[5] = new GameUnit(6, new Array(5,5), true, BLACK_FLAG, false);
+		}
+
+    	//初始化   
+    	$(window).ready(function(){    
+			addEventHandlers();
+			newGame();
+    	});   
+
+		function next_player()
+		{
+			current_player = current_player == WHITE_FLAG?BLACK_FLAG:WHITE_FLAG;
+		}
+
+		function unSelectOthers(index, flag)
+		{
+			var us = current_player==WHITE_FLAG?white_units:black_units;
+			for(var i = 0; i <= us.length; i++)
+			{
+				if(i != index)
+				{
+					us[i]._selected = false;
+				}
+			}
+		}
+		
+		function getCoodinate(e, size)
+		{
+			x=e.pageX;
+			y=e.pageY;
+			var pos = new Array(-1, -1);
+			if(x < BOARD_LEFT || x > BOARD_LEFT + BOARD_WIDTH || y < BOARD_TOP || y > BOARD_TOP + BOARD_HEIGHT)
+			{
+				return pos;
+			}
+			stepX = BOARD_WIDTH/size;
+			stepY = BOARD_HEIGHT/size;
+			pos[0] = Math.floor((x - BOARD_LEFT)/stepX);
+			pos[1] = Math.floor((y - BOARD_TOP)/stepY);
+			return pos;
+
+		}
+
+		Array.prototype.contains = function(obj) 
+		{ 
+			var i = this.length; 
+			while (i--) 
+			{ 
+				//if (this[i] === obj) 
+				if (this[i][0] === obj[0] && this[i][1] == obj[1]) 
+				{ 
+					return true; 
+				} 
+			} 
+			return false; 
+		} 
+
+		Array.prototype.remove=function(dx)
+		{
+		  	if(isNaN(dx)||dx>this.length){return false;}
+		  	for(var i=0,n=0;i<this.length;i++)
+		  	{
+				if(this[i]!=this[dx])
+		     	{
+		        	this[n++]=this[i];
+		      	}
+		  }
+		  this.length-=1
+		}
+
+		function addEventHandlers()
+		{
+			$("#canvas").click(function(e){
+				x=e.pageX;
+				y=e.pageY;
+				stepX = BOARD_WIDTH/6;
+				stepY = BOARD_HEIGHT/6;
+				r = stepX/2;
+				
+				var us = current_player==WHITE_FLAG?white_units:black_units;
+				var op = current_player==WHITE_FLAG?black_units:white_units;
+				for(var i = 0; i <= us.length; i++)
+				{
+					if(us[i]._selected)
+					{
+						var pos = getCoodinate(e, 6);
+						var allow_poses = get_possible_poses(us[i]._id, us[i], 6).uniq();
+						for(var j=0; j<allow_poses.length; j++)
+						{
+							if(can_reach(us[i], allow_poses[j]) && allow_poses[j][0] == pos[0] && allow_poses[j][1] == pos[1] )
+							{
+								for(var k=0; k<op.length; k++)
+								{
+									if(op[k]._pos[0] == pos[0] && op[k]._pos[1] == pos[1])
+									{
+										if(op[k]._id == 1)
+										{
+											alert(us[i]._flag + " wins!");
+											resetGame();
+										}
+										else
+										{
+											op.remove(k);
+										}
+									}
+								}
+								for(var k=0; k<us.length; k++)
+								{
+									if(us[k]._pos[0] == pos[0] && us[k]._pos[1] == pos[1])
+									{
+										us[i]._selected = false;
+										us[k]._selected = true;
+										return;
+									}
+								}
+								us[i]._pos[0] = pos[0];
+								us[i]._pos[1] = pos[1];
+								us[i]._selected = false;
+								next_player();
+							}
+						}
+					}
+					else if (hitMe(e.pageX, e.pageY, us[i]._pos, stepX, stepY, r))
+					{
+						us[i]._selected = true;
+						unSelectOthers(i, current_player);
+					}
+				}
+			});
+		}
+		
+		Array.prototype.uniq = function() 
+		{
+			var i,
+		    resultArr = [],
+		    returnArr = [],
+		    len= this.length,
+		    map={};
+		 
+			for (i = 0; i < len; ++i) 
+			{
+		        var item=this[i];
+				if (map[item])
+				{
+		            returnArr.push(this[i]);
+				} 
+				else 
+				{
+		            resultArr.push(this[i]);
+		            map[item]=true;
+		        }
+		    }
+		 
+		    this.length = len = resultArr.length;
+			for (i = 0; i < len ; ++i)
+			{
+		        this[i] = resultArr[i];
+		    }
+		 
+		    //return returnArr;
+		    return resultArr;
+		}
+
+		function get_possible_poses(id, u, sz)
+		{
+			var pos_array = new Array();
+			i = 0;
+
+			while(id >= i)
+			{
+				if(u._pos[0] + i < sz && u._pos[0] + i>=0 && u._pos[1] + (id-i)>=0 && u._pos[1] + (id-i)<sz)
+				{
+					pos_array.push(new Array(u._pos[0]+i, u._pos[1]+(id - i)));
+				}
+				if(u._pos[0] + i < sz && u._pos[0] + i>=0 && u._pos[1] - (id-i)>=0 && u._pos[1] - (id-i)<sz)
+				{
+					pos_array.push(new Array(u._pos[0]+i, u._pos[1]-(id - i)));
+				}
+				if(u._pos[0] - i < sz && u._pos[0] - i>=0 && u._pos[1] + (id-i)>=0 && u._pos[1] + (id-i)<sz)
+				{
+					pos_array.push(new Array(u._pos[0]-i, u._pos[1]+(id - i)));
+				}
+				if(u._pos[0] - i < sz && u._pos[0] - i>=0 && u._pos[1] - (id-i)>=0 && u._pos[1] - (id-i)<sz)
+				{
+					pos_array.push(new Array(u._pos[0]-i, u._pos[1]-(id - i)));
+				}
+				i++;
+			}
+			if(id < 2)
+			{
+				return pos_array.uniq();
+			}
+			else 
+			{
+				return pos_array.concat(get_possible_poses(id-2, u, sz));
+			}
+		}
+
+		function GameUnit(id, pos, alive, flag, selected)
+		{
+			this._id = id;
+			this._pos = pos;
+			this._alive = alive;
+			this._flag=flag;
+			this._selected=selected;
+		}
+        
+		function get_shortest_paths(s, pos)
+		{
+			var path = new Array();
+			var paths = new Array();
+			x=s[0];
+			y=s[1];
+			if(pos[0] == s[0] && pos[1] == s[1])
+			{
+				return null ;
+			}
+			if(pos[0] == s[0])
+			{
+				while(y!=pos[1])
+				{
+					if(y != s[1])
+					{
+						path.push(new Array(x,y));
+					}
+					y += (pos[1] - s[1])/Math.abs(pos[1] - s[1]);
+				}
+				paths.push(path);
+				return paths;
+			}
+			if(pos[1] == s[1])
+			{
+				while(x!=pos[0])
+				{
+					if(x != s[0])
+					{
+						path.push(new Array(x,y));
+					}
+					x += (pos[0] - s[0])/Math.abs(pos[0] - s[0]);
+				}
+				paths.push(path);
+				return paths;
+			}
+
+			var xx = pos[0];
+			var yy = pos[1];
+
+			xx = pos[0] - (pos[0] - s[0])/Math.abs(pos[0] - s[0]);
+			var path_x = get_shortest_paths(s, new Array(xx, pos[1]));
+			if(path_x != null)
+			{
+				for(var i=0; i<path_x.length; i++)
+				{
+					path_x[i].push(new Array(xx, pos[1]));
+					paths.push(path_x[i]);
+				}
+			}
+
+			yy = pos[1] - (pos[1] - s[1])/Math.abs(pos[1] - s[1]);
+			var path_y = get_shortest_paths(s, new Array(pos[0], yy));
+			if(path_y != null)
+			{
+				for(var i=0; i<path_y.length; i++)
+				{
+					path_y[i].push(new Array(pos[0], yy));
+					paths.push(path_y[i]);
+				}
+			}
+
+			return paths;
+		}
+
+		function get_paths_no_back(n, start_pos, end_pos)
+		{
+			if(start_pos[0] == end_pos[0] && start_pos[1] == end_pos[1])
+			{
+				return null;
+			}
+
+			if(n < Math.abs(end_pos[0] - start_pos[0]) + Math.abs(end_pos[1] - start_pos[1]))
+			{
+				return null;
+			}
+
+			if(n == Math.abs(end_pos[0] - start_pos[0]) + Math.abs(end_pos[1] - start_pos[1]))
+			{
+				return get_shortest_paths(start_pos,end_pos);
+			}
+			var paths = new Array(); 
+			var next_pos = new Array(start_pos[0] - 1, start_pos[1]);
+			if(next_pos != end_pos)
+			{
+				var paths_left = get_paths_no_back(n-1, next_pos, end_pos);
+				if(paths_left != null)
+				{
+					for(var i = 0; i < paths_left.length; i++)
+					{
+						if(!paths_left[i].contains(start_pos))
+						{
+							paths_left[i].unshift(next_pos);
+							paths.push(paths_left[i]);
+						}
+					}
+				}
+			}
+
+			next_pos = new Array(start_pos[0] + 1, start_pos[1]);
+			if(next_pos != end_pos)
+			{
+				var paths_right = get_paths_no_back(n-1, next_pos, end_pos);
+				if(paths_right != null)
+				{
+					for(var i = 0; i < paths_right.length; i++)
+					{
+						if(!paths_right[i].contains(start_pos))
+						{
+							paths_right[i].unshift(next_pos);
+							paths.push(paths_right[i]);
+						}
+					}
+				}
+			}
+
+			next_pos = new Array(start_pos[0], start_pos[1] + 1);
+			if(next_pos != end_pos)
+			{
+				var paths_up = get_paths_no_back(n-1, next_pos, end_pos);
+				if(paths_up != null)
+				{
+					for(var i = 0; i < paths_up.length; i++)
+					{
+						if(!paths_up[i].contains(start_pos))
+						{
+							paths_up[i].unshift(next_pos);
+							paths.push(paths_up[i]);
+						}
+					}
+				}
+			}
+
+			next_pos = new Array(start_pos[0], start_pos[1] - 1);
+			if(next_pos != end_pos)
+			{
+				var paths_down = get_paths_no_back(n-1, next_pos, end_pos);
+				if(paths_down != null)
+				{
+					for(var i = 0; i < paths_down.length; i++)
+					{
+						if(!paths_down[i].contains(start_pos))
+						{
+							paths_down[i].unshift(next_pos);
+							paths.push(paths_down[i]);
+						}
+					}
+				}
+			}
+
+			return paths;
+		}
+
+		function get_others(u)
+		{
+			var others = new Array();
+			var us = white_units.concat(black_units);
+			for(var i = 0; i < us.length; i++)
+			{
+				if(us[i] != u)
+				{
+					others.push(us[i]);
+				}
+			}
+
+			return others;
+		}
+
+		function out_side(p, max_size)
+		{
+			for(var i = 0; i < p.length; i++)
+			{
+				var s = p[i];
+				if(s[0] < 0 || s[1] < 0 || s[0] >= max_size || s[1] >= max_size)
+				{
+				if(s[0] < 0 || s[1] < 0 || s[0] >= max_size || s[1] >= max_size)
+					return true;
+				}
+			}
+			return false;
+		}
+
+		function same_flag(flag, pos)
+		{
+			var us =  flag == WHITE_FLAG ? white_units:black_units;	
+			for(var i = 0; i < us.length; i++)
+			{
+				if(us[i]._pos[0] == pos[0] && us[i]._pos[1] == pos[1])
+				{
+					return true;
+				}
+			}
+			return false;
+		}
+
+		function can_reach(u, pos)
+		{
+			if(same_flag(u._flag, pos))
+			{
+				return false;
+			}
+			var others = get_others(u);
+			var paths = get_paths_no_back(u._id, u._pos, pos);
+			var bad_paths = 0;
+
+			for(var i = 0; i < paths.length; i++)
+			{
+				if(out_side(paths[i], 6))	
+				{
+					bad_paths ++;
+					continue;
+				}
+
+				var outing = false;
+				for(var j = 0; j < others.length; j++)
+				{
+					if(paths[i].contains(others[j]._pos))
+					{
+						bad_paths ++;
+						outing = true;
+						break;
+					}
+				}
+				if(outing)
+				{
+					continue;
+				}
+			}
+
+			return bad_paths != paths.length;
+		}
+
+		function update() 
+		{
+        }
+
+		function hitMe(x, y, pos, setpX, stepY, r)
+		{
+			x0 = pos[0]*stepX + BOARD_LEFT + r;
+			y0 = pos[1]*stepY + BOARD_TOP + r;
+			return (x0-x)*(x0-x)+(y0-y)*(y0-y) <= r*r
+		}
+        
+		function draw() 
+		{
+			canvas.clearRect(0,0, CANVAS_WIDTH, CANVAS_HEIGHT)
+			drawBoard(6, "#000", "#996666", BOARD_LEFT, BOARD_TOP, BOARD_HEIGHT, BOARD_WIDTH);
+			stepX = BOARD_WIDTH/6;
+			stepY = BOARD_HEIGHT/6;
+			r = stepX/2
+
+			var u = null;
+			us=white_units.concat(black_units);
+			for(var i = 0; i < us.length; i++)
+			{
+				var bgColor = WHITE_NORMAL_BG;
+				var txColor = WHITE_NORMAL_BG;
+				if(us[i]._flag == BLACK_FLAG)
+				{
+					bgColor = us[i]._selected? BLACK_SELECTED_BG : BLACK_NORMAL_BG;
+					txColor = us[i]._selected? BLACK_SELECTED_TX : BLACK_NORMAL_TX;
+				}
+				else
+				{
+					bgColor = us[i]._selected? WHITE_SELECTED_BG : WHITE_NORMAL_BG;
+					txColor = us[i]._selected? WHITE_SELECTED_TX : WHITE_NORMAL_TX;
+				}
+
+				drawCircle(us[i]._pos[0]*stepX+BOARD_LEFT + r, us[i]._pos[1]*stepY + BOARD_TOP + r, 40, bgColor, txColor, us[i]._id);
+				if(us[i]._selected)
+				{
+					u = us[i];
+				}
+			}
+
+			poses = get_possible_poses(u._id, u, 6).uniq();
+			for(var i = 0; i<poses.length; i++)
+			{
+				if(can_reach(u, poses[i]))
+				{
+					var bg = current_player == WHITE_FLAG ? "rgba(207,219,16,0.5)": "rgba(23, 228, 29, 0.5)" ;
+					drawSquare(poses[i],bg,6);
+				}
+
+				//var paths = get_paths_no_back(u._id, u._pos, poses[i]);
+				//var p = paths[3];
+				//for(var i = 0; i<p.length; i++)
+				//{
+				//	{
+				//		var bg = current_player == WHITE_FLAG ? "rgba(207,219,16,0.5)": "rgba(23, 228, 29, 0.5)" ;
+				//		drawSquare(p[i],bg,6);
+				//	}
+		   		//}
+		   	}
+		}
+		
+		function drawBoard(size, bgColor, lineColor, leftPos, topPos, height, width)
+		{
+			//canvas.fillStyle   = bgColor;
+			canvas.strokeStyle = lineColor;
+			canvas.lineWidth   = 4;
+			var stepX = width/size;
+			var stepY = height/size;
+			 
+			for(var i = 0; i<= size; i++)
+			{
+				canvas.beginPath();
+				canvas.moveTo(leftPos + i*stepX, topPos); // give the (x,y) coordinates
+				canvas.lineTo(leftPos + i*stepX, topPos + height);
+				canvas.moveTo(leftPos, topPos + i*stepY); // give the (x,y) coordinates
+				canvas.lineTo(leftPos + width, topPos + i*stepY);
+				canvas.stroke();
+				canvas.closePath();
+			}
+        }
+
+		function drawSquare(pos, bgColor, sz)
+		{
+			margin = 4
+			stepX = BOARD_WIDTH/sz;
+			stepY = BOARD_HEIGHT/sz;
+			x = pos[0]*stepX + BOARD_LEFT + margin/2;
+			y = pos[1]*stepY + BOARD_TOP + margin/2;
+			width = stepX-margin;
+			height = stepY-margin;
+
+			canvas.lineWidth   = 1; 
+			canvas.fillStyle   = bgColor;
+			canvas.fillRect(x,y,width,height);
+		}
+
+		function drawCircle(x, y, d, bgColor, lineColor, id)
+		{
+			canvas.lineWidth   = 1; 
+			canvas.strokeStyle = lineColor;
+			canvas.fillStyle   = bgColor;
+			canvas.beginPath();
+			canvas.arc(x,y,d,0,Math.PI*2,true);
+			canvas.fill();
+			canvas.closePath();
+			canvas.restore();
+			canvas.save();
+
+			canvas.fillStyle = lineColor;
+			canvas.font = "32pt Arial";
+			canvas.fillText(id,x-10,y+14);
+			canvas.restore();
+			canvas.save();
+		}
+
+    </script>
+  </body>
+</html>

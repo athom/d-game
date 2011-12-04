@@ -1,0 +1,21 @@
+== History
+this is a little game which invented by yeer and Bo Liu since 2000, at Yixi Middle school. 
+My Chinese teacher Yanfeng Huang had palyed it.
+My neighbor Mohan Geneshi played it too in 2010.
+so maybe there are less than 5 people in the world had ever played it:)
+
+== Game rules
+the rule is quite simple: 
+1. x can move x steps without stepping backward. 
+2. "1" is the king, if the "1" die, u will lose the game
+
+== Requirement
+ruby shoes or just chrome browser with HTML5 supported
+
+== How to run
+1. just open the d-game.html with chrome browser or any other browser which supports HTML5
+2. install ruby shoes(https://github.com/shoes/shoes), and open d-game.rb with command "shoes d-game.rb"
+
+== TODO
+1. game lobby  
+2. AI 
